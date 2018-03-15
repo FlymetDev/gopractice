@@ -1,0 +1,150 @@
+// After Slice
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	//	"go/types"
+	"reflect"
+	"strconv"
+	"strings"
+)
+
+func parseType(typeField string) reflect.Type {
+	lowerCaseType := strings.ToLower(typeField)
+	switch lowerCaseType {
+	case "int":
+		//		fmt.Printf("reflect.TypeOf(int(0)): (%T)%v\ntypes.Int: (%T)%v\nreflect.Int: (%T)%v\n", reflect.TypeOf(int(0)), reflect.TypeOf(int(0)), types.Int, types.Int, reflect.Int, reflect.Int)
+		return reflect.TypeOf(int(0))
+
+		// reflect.Kind Type 반환
+		//		return reflect.Int
+		// types.BasicKind Type 반환
+		//		return types.Int
+
+	case "string":
+		return reflect.TypeOf("")
+
+	default:
+		return nil
+	}
+}
+
+func main() {
+	//	var jsonSample = []byte(`{"Struct":{"Name": "A", "Type": "int", "Value": "10"} }`)
+	var jsonSample = []byte(`{"Struct":[
+			{"Name": "id", "Type": "int", "Value": "10"},
+			{"Name": "issuer", "Type": "string", "Value": "issuerVal"}
+		]}`)
+	var unmarshaledJson interface{}
+	err2 := json.Unmarshal([]byte(jsonSample), &unmarshaledJson)
+	if err2 == nil {
+		// TODO Exception Handling
+	}
+
+	if unmarshaledJson == nil {
+		fmt.Println("Problem: unmarshaledJson is nil!")
+	}
+
+	//	fmt.Printf("unmarshaledJson.(type): %v", unmarshaledJson.(type)
+	fmt.Printf("unmarshaledJson: %+v\nType of unmarshaledJson: %T\n\n", unmarshaledJson, unmarshaledJson)
+
+	// Empty Interface는 Map Type이 아니다! => Key, Value 접근 불가능
+	// => Map Type으로 Casting
+	jsonCastedToMap := unmarshaledJson.(map[string]interface{})
+
+	// Key "Struct"에 매핑된 Value를 valueOfStruct 할당
+	// 1번째 jsonSample의 경우 이 Value는 map[string]interface{}이???????,
+	// 2번째 jsonSample의 경우 이 Value는 Slice Type이 될 것
+	valueOfStruct, exists := jsonCastedToMap["Struct"]
+	if !exists {
+		// TODO Exception Handling
+	}
+
+	//--------------------------------------------------------------------------
+	// struct 정의 및 instantiate
+	//--------------------------------------------------------------------------
+	/*
+		var structFields []reflect.StructField
+		// 동적으로 처리
+		//	structFields = append(structFields, reflect.StructField{Name: "Id", Type: reflect.TypeOf(""), Tag: reflect.StructTag("")})
+		structFields = append(structFields, reflect.StructField{Name: "Id", Type: reflect.TypeOf(""), Tag: reflect.StructTag("")})
+		fmt.Printf("structFields %+v\n", structFields)
+		structDef := reflect.StructOf(structFields)
+		// New()로 struct 정의, Elem()으로 instantiate
+		instance := reflect.New(structDef).Elem()
+		fmt.Printf("vs %+v\n", instance)
+	*/
+
+	//--------------------------------------------------------------------------
+	// Slice Type을 받으면 루프 돌면서 map으로 Casting
+	// valueOfStruct의 Type은 interface{}, Underlying Type은 []interface{}
+	//--------------------------------------------------------------------------
+	fmt.Printf("valueOfStruct: (%T)%+v\n", valueOfStruct, valueOfStruct)
+	castedValueOfStruct := valueOfStruct.([]interface{})
+	var castedValueOfStructField map[string]interface{}
+	var nameField, typeField, valueField string
+	var structFields []reflect.StructField
+
+	for i, val := range castedValueOfStruct {
+		fmt.Printf("%d번째 valueOfStruct.val: (%T)%+v\n", i, castedValueOfStruct[i], castedValueOfStruct[i])
+		castedValueOfStructField = val.(map[string]interface{}) // Call-by-Value 문제?
+
+		for key, value := range castedValueOfStructField {
+			fmt.Printf("Key: %v, Value: %v\n", key, value)
+
+			switch key {
+			case "Name":
+				nameField = strings.Title(castedValueOfStructField["Name"].(string))
+			case "Type":
+				typeField = castedValueOfStructField["Type"].(string)
+			case "Value":
+				valueField = castedValueOfStructField["Value"].(string)
+			default:
+				// TODO Exception Handling
+			}
+		}
+
+		fmt.Println("nameField: " + nameField)
+		fmt.Println("typeField: " + typeField)
+		fmt.Println("valueField: " + valueField)
+
+		//--------------------------------------------------------------------------
+		// StructField 생성해서 structFields 슬라이스에 넣기
+		//--------------------------------------------------------------------------
+		structFields = append(structFields, reflect.StructField{Name: nameField, Type: parseType(typeField), Tag: reflect.StructTag("json:" + strings.ToLower(nameField))})
+	}
+
+	//--------------------------------------------------------------------------
+	// struct 정의 및 instantiate
+	//--------------------------------------------------------------------------
+	structDef := reflect.StructOf(structFields)
+	instance := reflect.New(structDef).Elem() // New()로 struct 정의, Elem()으로 instantiate
+	fmt.Printf("instance: %s\n", instance)
+
+	//--------------------------------------------------------------------------
+	// 필드를 이름으로 검색, 필드의 타입에 따라 분기 처리
+	// Value 필드에 대해 string 값을 int로 파싱하여 SetInt 한다.
+	//--------------------------------------------------------------------------
+	switch instance.FieldByName(nameField).Kind() {
+	case reflect.Int:
+		valueParsedToInt, err := strconv.Atoi(valueField)
+		if err != nil {
+			// TODO Exception Handling
+		}
+		instance.FieldByName(nameField).SetInt(int64(valueParsedToInt))
+	}
+
+	marshaledJson, errByMarshal := json.Marshal(instance)
+	if errByMarshal != nil {
+		// TODO Exception Handling
+	}
+
+	// TODO string으로 볼 수 있도록 출력
+	// TODO 파일로 Output
+	fmt.Printf("marshaledJson: %s\n", marshaledJson)
+	//	var unmarshaledJson2 interface{}
+	//	json.Unmarshal([]byte(marshaledJson), &unmarshaledJson2)
+	//	fmt.Printf("unmarshaledJson2: %+v\nType of unmarshaledJson2: %T\n\n", unmarshaledJson2, unmarshaledJson2)
+}

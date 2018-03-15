@@ -1,0 +1,67 @@
+package main
+
+import (
+	"fmt"
+)
+
+type SomeType struct{}
+
+type Ball struct {
+	Radius   int
+	Material string
+}
+
+// Ball은 Bounce()를 구현하므로 Bouncer 인터페이스의 원소
+//func (b Ball) Bounce() {
+func (b *Ball) Bounce() {
+	fmt.Printf("Bouncing ball %+v\n", b)
+}
+
+type Bouncer interface {
+	Bounce()
+}
+
+func BounceIt(b Bouncer) {
+	b.Bounce()
+}
+
+type Football struct {
+	//	Hello Ball
+	//	Ball
+	//	*Ball
+	Bouncer
+}
+
+func main() {
+	//	fb := Football{Ball{Radius: 5, Material: "leather"}}
+	//	fb := Football{} // 이렇게 해도 자동으로 영값 초기화하므로 값이 할당된다. -> NPE 발생 안함
+	//	fmt.Printf("fb = %+v\n", fb)
+
+	// => Hello Ball
+	// Ball 타입의 Hello 필드를 통해 Bounce()를 접근해야하지 않나?
+	// Ball을 필드로 선언하는게 아니라 부모로 지정한다는 개념인가? <<<<<
+	// 근데 부모 Ball Type의 변수는 선언되지도 않았는데 초기화는 어디에다 하나? => Ball이 부모타입지정이자 필드가 될 수 있나?
+	//	fb.Bounce()	// fb.Bounce undefined (type Football has no field or method Bounce)
+	//	fb.Hello.Bounce() // OK
+
+	// => Ball
+	//	fb.Bounce()
+	//	fb.Ball.Bounce()
+
+	// 인터페이스 추가 후
+
+	// 부모인 Ball이 Bouncer 인터페이스를 구현하므로 자식인 Football도 Bouncer 인터페이스를 구현한 것과 같다. 이 때 자식의 Bounce()를 사용.
+	// TODO 메서드 Conflict날 경우는?????
+	//	BounceIt(fb)
+
+	// Ball의 필드가 영값으로 자동 초기화가 되어서 NPE가 발생하지 않는다... => Bouncing ball {Radius:0 Material:}
+	// *Ball이 포인터의 영값인 nil로 자동 초기화 => Bouncing ball <nil>
+	//	fb := Football{}
+	//	BounceIt(fb)
+
+	// FIXME Embedding interfaces => 인터페이스 타입은 값이 아닌 포인터를 받는다.
+	// *Ball => Bouncing ball &{Radius:5 Material:leather}
+	// Ball => Bouncing ball {Radius:5 Material:leather}
+	fb := Football{&Ball{Radius: 5, Material: "leather"}}
+	fb.Bounce()
+}

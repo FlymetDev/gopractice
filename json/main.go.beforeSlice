@@ -1,0 +1,182 @@
+// Before Slice
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"go/types"
+	"reflect"
+	"strconv"
+	"strings"
+)
+
+func parseType(typeField string) reflect.Type {
+	lowerCaseType := strings.ToLower(typeField)
+	switch lowerCaseType {
+	case "int":
+		//		fmt.Printf("reflect.TypeOf(int(0)): (%T)%v\ntypes.Int: (%T)%v\nreflect.Int: (%T)%v\n", reflect.TypeOf(int(0)), reflect.TypeOf(int(0)), types.Int, types.Int, reflect.Int, reflect.Int)
+		return reflect.TypeOf(int(0))
+
+		// reflect.Kind Type 반환
+		//		return reflect.Int
+		// types.BasicKind Type 반환
+		//		return types.Int
+
+	case "string":
+		return reflect.TypeOf("")
+
+	default:
+		return nil
+	}
+}
+
+func main() {
+	var jsonBlob = []byte(`[
+		{"Name": "Platypus", "Order": "Monotremata"},
+		{"Name": "Quoll",    "Order": "Dasyuromorphia"}
+	]`)
+
+	type Animal struct {
+		Name  string
+		Order string
+	}
+	var animals []Animal
+	err := json.Unmarshal(jsonBlob, &animals)
+	if err != nil {
+		fmt.Println("error:", err)
+	}
+	fmt.Printf("%+v\n", animals)
+
+	var err1 error
+	var f interface{}
+
+	json1 := `{"a":{"Name": "Platypus", "Order": "Monotremata"}}`
+	err1 = json.Unmarshal([]byte(json1), &f)
+	if err1 != nil {
+	}
+	//	fmt.Printf("f.(type): %v", f.(type))
+	fmt.Printf("%+v\n%T\n", f, f)
+
+	//--------------------------------------------------------------------------
+	fmt.Printf("--------------------------------------------------------------------------\n")
+	var jsonSample = []byte(`{"Struct":{"Name": "A", "Type": "int", "Value": "10"} }`)
+	//	var jsonSample = []byte(`{"Struct":[
+	//		{"Name": "id", "Type": "int", "Value": "10"}
+	//		{"Name": "issuer", "Type": "string", "Value": "issuerVal"}
+	//	]}`)
+	var unmarshalledJson interface{}
+	err2 := json.Unmarshal([]byte(jsonSample), &unmarshalledJson)
+	if err2 != nil {
+	}
+	//	fmt.Printf("unmarshalledJson.(type): %v", unmarshalledJson.(type))
+	fmt.Printf("unmarshalledJson: %+v\nType of unmarshalledJson: %T\n\n", unmarshalledJson, unmarshalledJson)
+
+	// Empty Interface는 Map Type이 아니다! => Key, Value 접근 불가능
+	// => Map Type으로 Casting
+	fmt.Printf("★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★\n")
+	jsonCastedToMap := unmarshalledJson.(map[string]interface{})
+
+	// Key "Struct"에 매핑된 Value를 rawValue에 할당
+	// 1번째 jsonSample의 경우 이 Value는 map[string]interface{}이???????,
+	// 2번째 jsonSample의 경우 이 Value는 Slice Type이 될 것
+	rawValue, exists := jsonCastedToMap["Struct"]
+	if !exists {
+		// TODO Exception Handling
+	}
+
+	//--------------------------------------------------------------------------
+	// struct 정의 및 instantiate
+	//--------------------------------------------------------------------------
+	/*
+		var structFields []reflect.StructField
+		// 동적으로 처리
+		//	structFields = append(structFields, reflect.StructField{Name: "Id", Type: reflect.TypeOf(""), Tag: reflect.StructTag("")})
+		structFields = append(structFields, reflect.StructField{Name: "Id", Type: reflect.TypeOf(""), Tag: reflect.StructTag("")})
+		fmt.Printf("structFields %+v\n", structFields)
+		structDef := reflect.StructOf(structFields)
+		// New()로 struct 정의, Elem()으로 instantiate
+		instance := reflect.New(structDef).Elem()
+		fmt.Printf("vs %+v\n", instance)
+	*/
+
+	//--------------------------------------------------------------------------
+	// Slice 형태 처리시 for문 하나 더 필요.
+	// Slice Type을 받으면 루프 돌면서 map으로 까줘야 함.
+	//--------------------------------------------------------------------------
+	valueCastedToMap := rawValue.(map[string]interface{})
+	var nameField, typeField, valueField string
+
+	for key, value := range valueCastedToMap {
+		fmt.Printf("Key: %v, Value: %v\n", key, value)
+
+		switch key {
+		case "Name":
+			nameField = valueCastedToMap["Name"].(string)
+		case "Type":
+			typeField = valueCastedToMap["Type"].(string)
+		case "Value":
+			valueField = valueCastedToMap["Value"].(string)
+		default:
+			// TODO Exception Handling
+		}
+	}
+
+	//--------------------------------------------------------------------------
+	// struct 정의 및 instantiate
+	//--------------------------------------------------------------------------
+	var structFields []reflect.StructField
+	structFields = append(structFields, reflect.StructField{Name: nameField, Type: parseType(typeField), Tag: reflect.StructTag("")})
+	structDef := reflect.StructOf(structFields)
+	instance := reflect.New(structDef).Elem() // New()로 struct 정의, Elem()으로 instantiate
+
+	switch instance.FieldByName(nameField).Kind() {
+	case reflect.Int:
+		valueParsedToInt, err := strconv.Atoi(valueField)
+		if err != nil {
+			// TODO Exception Handling
+		}
+		instance.FieldByName(nameField).SetInt(int64(valueParsedToInt))
+	}
+
+	fmt.Println("instance.NumField(): ", instance.NumField()) // 이거 왜 필드 갯수 하나인 걸로 나오지?
+	fmt.Println("instance.Type(): ", instance.Type())
+	/*
+		type sample struct {
+			Name Type Tag
+			Type Type Tag
+			Value Type Tag
+		}
+	*/
+
+	for i := 0; i < instance.NumField(); i++ {
+		fmt.Printf("%d번째 필드: %v\n", i+1, instance.Field(i))
+	}
+	fmt.Printf("instance: %+v\n", instance)
+	fmt.Printf("jsonCastedToMap: (%T)%+v\n", jsonCastedToMap, jsonCastedToMap)
+
+	/* Snippet
+	someVar.valueOf(x).SetSomething()
+
+	 ValueOf(): func ValueOf(i interface{}) Value
+	 ValueOf returns a new Value initialized to the concrete value stored in the interface i. ValueOf(nil) returns the zero Value.
+	 var x float64 = 3.4
+	 v := reflect.ValueOf(x)
+	 v.SetFloat(7.1)
+
+	 Field(): func (v Value) Field(i int) Value
+
+	nameFieldPtr := &instance.Field(0)
+	nameField := nameFieldPtr.Elem()
+	nameField.SetString(mappedVal1["Name"].(string))
+	*/
+
+	//	fmt.Println("instance.NumField(): ", instance.NumField()) // 이거 왜 필드 갯수 하나인 걸로 나오지?
+	//	fmt.Println("instance.Type(): ", instance.Type())
+
+	//	for i := 0; i < instance.NumField(); i++ {
+	//		fmt.Printf("%d번째 필드: %v\n", i+1, instance.Field(i))
+	//	}
+	//	fmt.Printf("instance: %+v\n", instance)
+	//	fmt.Printf("jsonCastedToMap: (%T)%+v\n", jsonCastedToMap, jsonCastedToMap)
+}
